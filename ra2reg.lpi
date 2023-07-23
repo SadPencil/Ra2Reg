@@ -19,8 +19,8 @@
         <DpiAware Value="True"/>
         <ExecutionLevel Value="requireAdministrator"/>
         <AnsiUTF8 Value="True"/>
-        <TextName Value="SadPencil.Ra2KeyGen.Installer"/>
-        <TextDesc Value="SadPencil.Ra2KeyGen.Installer"/>
+        <TextName Value="SadPencil.Ra2KeyGen"/>
+        <TextDesc Value="SadPencil.Ra2KeyGen"/>
       </XPManifest>
       <Icon Value="0"/>
     </General>
