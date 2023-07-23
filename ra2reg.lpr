@@ -3,112 +3,280 @@ program ra2reg;
 {$mode objfpc}{$H+}
 
 uses
- {$IFDEF UNIX} {$IFDEF UseCThreads}
-  cthreads,        {$ENDIF}        {$ENDIF}
   Classes,
   Registry,
-  SysUtils;
+  SysUtils,
+  Windows,
+  getopts;
 
-//const
-//  KEY_WOW64_64KEY = $0100;
-//  SM_CXSCREEN = 0; // width
-//  SM_CYSCREEN = 1; // height
+const
+  KEY_WOW64_64KEY = $0100;
+  SM_CXSCREEN = 0; // width
+  SM_CYSCREEN = 1; // height                  
+  MB_OK = $00000000;
+  MB_ICONINFORMATION = $00000040;
 var
-  AppPath: string;
-  new_key_32: Tregistry;
-  //new_key_64: Tregistry;
-  new_text: Text;
-  i: int32;
-  Serial: string;
-  //Width, Height: int32;
+  optShowHelp: bool = False;
+  optShowMsgBox: bool = True;
+  optWriteRa2Ini: bool = True;
+  optWriteWoldataKey: bool = True;
+  optSetCompatibility: bool = True;
+  optRegBlowfish: bool = True;
+  optRegRa2: bool = True;
+  optRa2Enabled: bool = True;
+  optRa2mdEnabled: bool = True;
+  optHighResSupport: bool = True;
+
+  function GetSystemMetrics(nIndex: int32): int32; stdcall; external 'user32.dll';
+  function DllRegisterServer(): longint; stdcall; external 'Blowfish.dll';
+
+  procedure RegBlowfish();
+
+  begin
+    if not optRegBlowfish then exit();
+    DllRegisterServer();
+  end;
+
+  procedure WriteRa2Ini(appPath: string; screenWidth, screenHeight: int32);
+  var
+    textFile: Text;
+  begin
+    if not optWriteRa2Ini then exit();
+
+    if optRa2Enabled then
+    begin
+      AssignFile(textFile, AppPath + '\RA2.INI');
+      rewrite(textFile);
+      Writeln(textFile, '[Video]');
+      Writeln(textFile, 'AllowHiResModes=yes');
+      Writeln(textFile, 'VideoBackBuffer=no');
+      Writeln(textFile, 'AllowVRAMSidebar=no');
+      Write(textFile, 'ScreenWidth=');
+      Writeln(textFile, screenWidth);
+      Write(textFile, 'ScreenHeight=');
+      Writeln(textFile, screenHeight);
+      Close(textFile);
+    end;
+
+    if optRa2mdEnabled then
+    begin
+      AssignFile(textFile, AppPath + '\RA2MD.INI');
+      rewrite(textFile);
+      Writeln(textFile, '[Video]');
+      Writeln(textFile, 'AllowHiResModes=yes');
+      Writeln(textFile, 'VideoBackBuffer=no');
+      Writeln(textFile, 'AllowVRAMSidebar=no');
+      Write(textFile, 'ScreenWidth=');
+      Writeln(textFile, screenWidth);
+      Write(textFile, 'ScreenHeight=');
+      Writeln(textFile, screenHeight);
+      Close(textFile);
+    end;
+
+  end;
+
+  // Call randomize() before calling this method
+  function GetRandomSerial: string;
+  const
+    RA2_SERIAL_SIZE = 22;
+  var
+    serial: string;
+    i: int32;
+  begin
+    serial := default(string);
+    setlength(serial, RA2_SERIAL_SIZE);
+    for i := 1 to RA2_SERIAL_SIZE do
+      serial[i] := char(random(10) + 48);
+    exit(serial);
+  end;
+
+  // Call randomize() before calling this method
+  procedure WriteWoldataKey(appPath: string);
+  const
+    KEY_FILENAME = 'Woldata.key';
+    RA2_KEY_SIZE = 128;
+  var
+    textFile: Text;
+    i: int32;
+  begin
+    if not optWriteWoldataKey then exit();
+    AssignFile(textFile, appPath + '\' + KEY_FILENAME);
+    rewrite(textFile);
+    for i := 1 to RA2_KEY_SIZE do
+      Write(textFile, random(10));
+    Close(textFile);
+  end;
+
+  procedure WriteRa2Registry(appPath, serial: string);
+  var
+    regKey32: Tregistry;
+  begin
+    if not optRegRa2 then exit();
+
+    regKey32 := Tregistry.Create(KEY_ALL_ACCESS or KEY_WOW64_32KEY);
+    regKey32.RootKey := HKEY_LOCAL_MACHINE;
+
+    regKey32.OpenKey('SOFTWARE\Westwood\Red Alert 2', True);
+    regKey32.WriteString('Serial', serial);
+    regKey32.WriteString('Name', 'Red Alert 2');
+    regKey32.WriteString('InstallPath', appPath + '\RA2.EXE');
+    regKey32.WriteInteger('SKU', 8448);
+    regKey32.WriteInteger('Version', 65542);
+    regKey32.CloseKey;
+
+    regKey32.OpenKey('SOFTWARE\Westwood\Yuri''s Revenge', True);
+    regKey32.WriteString('Serial', serial);
+    regKey32.WriteString('Name', 'Yuri''s Revenge');
+    regKey32.WriteString('InstallPath', appPath + '\RA2MD.EXE');
+    regKey32.WriteInteger('SKU', 10496);
+    regKey32.WriteInteger('Version', 65537);
+    regKey32.CloseKey;
+
+    regKey32.Free;
+  end;
+
+  procedure SetRa2Compatibility(appPath: string);
+  var
+    regKey64: Tregistry;
+  begin
+    if not optSetCompatibility then exit();
+    regKey64 := Tregistry.Create(KEY_ALL_ACCESS or KEY_WOW64_64KEY);
+    regKey64.RootKey := HKEY_LOCAL_MACHINE;
+    regKey64.OpenKey(
+      'SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers',
+      True);
+    if optRa2Enabled then
+    begin
+      regKey64.WriteString(AppPath + '\GAME.EXE', '~ RUNASADMIN HIGHDPIAWARE');
+      regKey64.WriteString(AppPath + '\RA2.EXE', '~ RUNASADMIN HIGHDPIAWARE');
+    end;
+    if optRa2mdEnabled then
+    begin
+      regKey64.WriteString(AppPath + '\GAMEMD.EXE', '~ RUNASADMIN HIGHDPIAWARE');
+      regKey64.WriteString(AppPath + '\RA2MD.EXE', '~ RUNASADMIN HIGHDPIAWARE');
+      regKey64.WriteString(AppPath + '\YURI.EXE', '~ RUNASADMIN HIGHDPIAWARE');
+    end;
+    regKey64.Free;
+
+  end;
+
+  procedure Initialize();
+
+  var
+    opt: char;
+  begin
+    randomize();
+
+    while True do
+    begin
+      opt := GetOpt('hifcbr2ysw');
+      case opt of
+        'h': optShowHelp := True;
+        'i': optWriteRa2Ini := False;
+        'f': optWriteWoldataKey := False;
+        'c': optSetCompatibility := False;
+        'b': optRegBlowfish := False;
+        'r': optRegRa2 := False;
+        '2': optRa2Enabled := False;
+        'y': optRa2mdEnabled := False;
+        's': optHighResSupport := False;
+        'w': optShowMsgBox := False;
+        '?': optShowHelp := True;
+        #0: Break;
+        else
+          Break;
+      end;
+    end;
+  end;
+
+  procedure ShowHelp();
+  const
+    helpText =
+      'Usage:' + LineEnding + '-h: show this help.' + LineEnding +
+      '-2: don''t handle everything about Red Alert 2. Just process Yuri''s Revenge.' +
+      LineEnding +
+      '-y: don''t handle everything about Yuri''s Revenge. Just process Red Alert 2.' +
+      LineEnding + '-i: don''t write RA2(MD).ini file.' + LineEnding +
+      '-f: don''t write Woldata.key file for Yuri''s Revenge' +
+      LineEnding + '-c: don''t set compatibility for gaming executables' +
+      LineEnding + '-b: don''t register Blowfish.dll file' + LineEnding +
+      '-r: don''t register Red Alert 2 and Yuri''s Revenge in registry' +
+      LineEnding +
+      '-s: disable high resolution support and assume the screen is in SVGA (800x600) mode.'
+      +
+      LineEnding + '-w: don''t show messages in Win32 MessageBox.' +
+      LineEnding + LineEnding +
+      'For regular Ra2 installation, you don''t need to specify these options. Leave all options as default.'
+      + LineEnding + 'For Ares-based mods like Mental Omega, specify "-2if".';
+  begin
+    Writeln(helpText);
+
+  end;
+
+const
+  highResWarningText: string =
+    'Warning: your screen resolution is too high. In this situation, a map whose size is small causes crashes. It is advised to decrease your resolution at "Settings" in-game menu.';
+  highResWarningCaption: string = 'High Resolution Warning';
+var
+  appPath: string;
+  serial: string;
+  screenWidth, screenHeight: int32;
+  isHighRes: bool;
 
 {$R *.res}
 
-  function DllRegisterServer(): longint; stdcall; external 'Blowfish.dll';
-  //function GetSystemMetrics(nIndex: int32): int32; stdcall; external 'user32.dll';
-
 begin
-  Writeln('Installer for Red Alert 2 and Yuri''s Revenge');
+  Writeln('Register for Red Alert 2 and Yuri''s Revenge');
   Writeln('Author: Sad Pencil');
-  writeln();
-  AppPath := ExtractFileDir(ParamStr(0));
+  Writeln();
+  appPath := ExtractFileDir(ParamStr(0));
+  Initialize();
+  if optShowHelp then
+  begin
+    ShowHelp();
+    exit();
+  end;
 
-  randomize();
   Writeln('Generating serial number...');
-  serial := default(string);
-  setlength(serial, 22);
-  for i := 1 to 22 do
-    Serial[i] := char(random(10) + 48);
+  serial := GetRandomSerial();
 
   Writeln('Generating Woldata.key file...');
-
-  AssignFile(new_text, AppPath + '\Woldata.key');
-  rewrite(new_text);
-  for i := 1 to 128 do
-    Write(new_text, random(10));
-  Close(new_text);
-
+  WriteWoldataKey(appPath);
 
   Writeln('Writing registry...');
-  new_key_32 := Tregistry.Create(KEY_ALL_ACCESS or KEY_WOW64_32KEY);
-  new_key_32.RootKey := HKEY_LOCAL_MACHINE;
-  new_key_32.openkey('SOFTWARE\Westwood\Red Alert 2', True);
-  new_key_32.WriteString('Serial', Serial);
-  new_key_32.WriteString('Name', 'Red Alert 2');
-  new_key_32.WriteString('InstallPath', AppPath + '\RA2.EXE');
-  new_key_32.WriteInteger('SKU', 8448);
-  new_key_32.WriteInteger('Version', 65542);
-  new_key_32.closekey;
-  new_key_32.openkey('SOFTWARE\Westwood\Yuri''s Revenge', True);
-  new_key_32.WriteString('Serial', Serial);
-  new_key_32.WriteString('Name', 'Yuri''s Revenge');
-  new_key_32.WriteString('InstallPath', AppPath + '\RA2MD.EXE');
-  new_key_32.WriteInteger('SKU', 10496);
-  new_key_32.WriteInteger('Version', 65537);
-  new_key_32.closekey;
-  new_key_32.Free;
+  WriteRa2Registry(appPath, serial);
 
-  //Writeln('Setting application compatibility...');
-  //new_key_64 := Tregistry.Create(KEY_ALL_ACCESS or KEY_WOW64_64KEY);
-  //new_key_64.RootKey := HKEY_LOCAL_MACHINE;
-  //new_key_64.openkey(
-  //  'SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers',
-  //  True);
-  //new_key_64.WriteString(AppPath + '\GAME.EXE', '~ RUNASADMIN HIGHDPIAWARE WIN7RTM');
-  //new_key_64.WriteString(AppPath + '\GAMEMD.EXE', '~ RUNASADMIN HIGHDPIAWARE WIN7RTM');
-  //new_key_64.WriteString(AppPath + '\RA2.EXE', '~ RUNASADMIN HIGHDPIAWARE WIN7RTM');
-  //new_key_64.WriteString(AppPath + '\RA2MD.EXE', '~ RUNASADMIN HIGHDPIAWARE WIN7RTM');
-  //new_key_64.WriteString(AppPath + '\YURI.EXE', '~ RUNASADMIN HIGHDPIAWARE WIN7RTM');
-  //new_key_64.Free;
+  Writeln('Setting application compatibility...');
+  SetRa2Compatibility(appPath);
 
   Writeln('Registering Blowfish.dll file...');
-  DllRegisterServer();
+  RegBlowfish();
 
-  //Writeln('Enabling high resolution support...');
-  //Width := GetSystemMetrics(SM_CXSCREEN);
-  //Height := GetSystemMetrics(SM_CYSCREEN);
+  Writeln('Enabling high resolution support...');
+  if optHighResSupport then
+  begin
+    screenWidth := GetSystemMetrics(SM_CXSCREEN);
+    screenHeight := GetSystemMetrics(SM_CYSCREEN);
+  end
+  else
+  begin
+    screenWidth := 800;
+    screenHeight := 600;
+  end;
 
-  //AssignFile(new_text, AppPath + '\RA2.INI');
-  //rewrite(new_text);
-  //Writeln(new_Text, '[Video]');
-  //Writeln(new_text, 'AllowHiResModes=yes');
-  //Writeln(new_text, 'VideoBackBuffer=no');
-  //Writeln(new_text, 'AllowVRAMSidebar=no');
-  //Write(new_text, 'ScreenWidth=');
-  //Writeln(new_text, Width);
-  //Write(new_text, 'ScreenHeight=');
-  //Writeln(new_text, Height);
-  //Close(new_text);
-  //AssignFile(new_text, AppPath + '\RA2MD.INI');
-  //rewrite(new_text);
-  //Writeln(new_Text, '[Video]');
-  //Writeln(new_text, 'AllowHiResModes=yes');
-  //Writeln(new_text, 'VideoBackBuffer=no');
-  //Writeln(new_text, 'AllowVRAMSidebar=no');
-  //Write(new_text, 'ScreenWidth=');
-  //Writeln(new_text, Width);
-  //Write(new_text, 'ScreenHeight=');
-  //Writeln(new_text, Height);
-  //Close(new_text);
+  isHighRes := (screenWidth > 2560) or (screenHeight > 1440);
+  WriteRa2Ini(appPath, screenWidth, screenHeight);
+
+  if isHighRes then
+  begin
+    Writeln(highResWarningText);
+    if optShowMsgBox then
+      MessageBox(0, PChar(highResWarningText), PChar(highResWarningCaption),
+        MB_OK or MB_ICONINFORMATION);
+  end;
+
+  if optShowMsgBox then
+    MessageBox(0, 'Setup complete.', 'Register for RA2 & YR (by: Sad Pencil)',
+      MB_OK or MB_ICONINFORMATION);
 
 end.
