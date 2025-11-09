@@ -34,6 +34,8 @@ var
 
   begin
     if not optRegBlowfish then exit();
+
+    Writeln('Registering Blowfish.dll file...');
     DllRegisterServer();
   end;
 
@@ -100,6 +102,8 @@ var
     i: int32;
   begin
     if not optWriteWoldataKey then exit();
+
+    Writeln('Generating Woldata.key file...');
     AssignFile(textFile, appPath + '\' + KEY_FILENAME);
     rewrite(textFile);
     for i := 1 to RA2_KEY_SIZE do
@@ -112,6 +116,8 @@ var
     regKey32: Tregistry;
   begin
     if not optRegRa2 then exit();
+    
+    Writeln('Writing registry...');
 
     regKey32 := Tregistry.Create(KEY_ALL_ACCESS or KEY_WOW64_32KEY);
     regKey32.RootKey := HKEY_LOCAL_MACHINE;
@@ -140,6 +146,8 @@ var
     regKey64: Tregistry;
   begin
     if not optSetCompatibility then exit();
+
+    Writeln('Setting application compatibility...');
     regKey64 := Tregistry.Create(KEY_ALL_ACCESS or KEY_WOW64_64KEY);
     regKey64.RootKey := HKEY_LOCAL_MACHINE;
     regKey64.OpenKey(
@@ -240,23 +248,21 @@ begin
   Writeln('Generating serial number...');
   serial := GetRandomSerial();
 
-  Writeln('Generating Woldata.key file...');
   WriteWoldataKey(appPath);
 
-  Writeln('Writing registry...');
   WriteRa2Registry(appPath, serial);
 
-  Writeln('Setting application compatibility...');
   SetRa2Compatibility(appPath);
 
-  Writeln('Registering Blowfish.dll file...');
   RegBlowfish();
 
-  Writeln('Enabling high resolution support...');
+  optHighResSupport := optHighResSupport and optWriteRa2Ini;
   if optHighResSupport then
   begin
+    Writeln('Enabling high resolution support...');
     screenWidth := GetSystemMetrics(SM_CXSCREEN);
     screenHeight := GetSystemMetrics(SM_CYSCREEN);
+
   end
   else
   begin
