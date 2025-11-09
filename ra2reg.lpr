@@ -223,7 +223,7 @@ var
 
 const
   highResWarningText: string =
-    'Warning: your screen resolution is too high. In this situation, a map whose size is small causes crashes. It is advised to decrease your resolution at "Settings" in-game menu.';
+    'Warning: your screen resolution is too high. In this situation, there might be crashes without applying Ares. The in-game resolution has been reduced to 1920x1080.';
   highResWarningCaption: string = 'High Resolution Warning';
 var
   appPath: string;
@@ -270,7 +270,13 @@ begin
     screenHeight := 600;
   end;
 
-  isHighRes := (screenWidth > 2560) or (screenHeight > 1440);
+  isHighRes := (screenWidth > 1920) or (screenHeight > 1200);
+  if isHighRes then
+  begin
+    screenWidth := 1920;
+    screenHeight := 1080;
+  end;
+  
   WriteRa2Ini(appPath, screenWidth, screenHeight);
 
   if isHighRes then
