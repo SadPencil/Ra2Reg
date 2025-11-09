@@ -18,7 +18,7 @@ const
 var
   optShowHelp: bool = False;
   optShowMsgBox: bool = True;
-  optWriteRa2Ini: bool = True;
+  optWriteRa2Ini: bool = False;
   optWriteWoldataKey: bool = True;
   optSetCompatibility: bool = True;
   optRegBlowfish: bool = True;
