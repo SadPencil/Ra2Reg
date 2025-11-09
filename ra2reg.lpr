@@ -227,7 +227,7 @@ var
 
 begin
   Writeln('Register for Red Alert 2 and Yuri''s Revenge');
-  Writeln('Author: Sad Pencil');
+  Writeln('Author: SadPencil');
   Writeln();
   appPath := ExtractFileDir(ParamStr(0));
   Initialize();
@@ -276,7 +276,7 @@ begin
   end;
 
   if optShowMsgBox then
-    MessageBox(0, 'Setup complete.', 'Register for RA2 & YR (by: Sad Pencil)',
+    MessageBox(0, 'Setup complete.', 'Register for RA2 & YR (by: SadPencil)',
       MB_OK or MB_ICONINFORMATION);
 
 end.
