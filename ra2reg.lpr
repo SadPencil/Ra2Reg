@@ -18,10 +18,10 @@ const
 var
   optShowHelp: bool = False;
   optShowMsgBox: bool = True;
-  optWriteRa2Ini: bool = False;
+  optWriteRa2Ini: bool = False; // True for a fresh install
   optWriteWoldataKey: bool = True;
   optSetCompatibility: bool = True;
-  optRegBlowfish: bool = True;
+  optRegBlowfish: bool = True; // False for Phobos
   optRegRa2: bool = True;
   optRa2Enabled: bool = True;
   optRa2mdEnabled: bool = True;
